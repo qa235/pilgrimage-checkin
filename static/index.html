@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<title>進香 GPS 打卡</title>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+
+<style>
+
+body{
+    margin:0;
+    font-family:Arial;
+    background:#f5f5f5;
+}
+
+.header{
+    text-align:center;
+    font-size:22px;
+    font-weight:bold;
+    padding:12px;
+    background:#c62828;
+    color:white;
+}
+
+.controls{
+    padding:10px;
+    text-align:center;
+}
+
+button{
+    width:90%;
+    padding:15px;
+    margin:8px;
+    font-size:18px;
+    border:none;
+    border-radius:10px;
+    cursor:pointer;
+}
+
+.btn-gps{
+    background:#2e7d32;
+    color:white;
+}
+
+.btn-photo{
+    background:#1565c0;
+    color:white;
+}
+
+#photo{
+    display:none;
+}
+
+#map{
+    height:65vh;
+}
+
+</style>
+
+</head>
+
+<body>
+
+<div class="header">
+📍 進香 GPS 打卡地圖
+</div>
+
+<div class="controls">
+
+<button class="btn-gps" onclick="checkin()">
+📍 GPS 打卡
+</button>
+
+<button class="btn-photo" onclick="openCamera()">
+📷 拍照打卡
+</button>
+
+<input type="file" id="photo" accept="image/*" capture="environment">
+
+</div>
+
+<div id="map"></div>
+
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+
+var map = L.map('map').setView([25.0330,121.5654],13);
+
+L.tileLayer(
+'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+{ attribution:'© OpenStreetMap' }
+).addTo(map);
+
+var currentLat = null;
+var currentLng = null;
+
+var markers = [];
+var routeLine = null;
+
+
+// GPS定位
+navigator.geolocation.getCurrentPosition(
+
+function(position){
+
+    currentLat = position.coords.latitude;
+    currentLng = position.coords.longitude;
+
+    map.setView([currentLat,currentLng],16);
+
+    var marker = L.marker([currentLat,currentLng]).addTo(map);
+
+    marker.bindPopup("你目前的位置").openPopup();
+
+},
+
+function(){
+    alert("無法取得 GPS");
+}
+
+);
+
+
+// GPS打卡
+function checkin(){
+
+    if(currentLat == null){
+        alert("GPS 尚未取得位置");
+        return;
+    }
+
+    fetch("/checkin",{
+
+        method:"POST",
+
+        headers:{
+            "Content-Type":"application/json"
+        },
+
+        body:JSON.stringify({
+            lat: currentLat,
+            lng: currentLng
+        })
+
+    })
+
+    .then(res=>res.json())
+
+    .then(data=>{
+
+        alert("打卡成功");
+
+        loadCheckins();
+
+    });
+
+}
+
+
+// 開啟相機
+function openCamera(){
+
+    document.getElementById("photo").click();
+
+}
+
+
+// 選擇照片後自動上傳
+document.getElementById("photo").addEventListener("change",function(){
+
+    var file = this.files[0];
+
+    if(!file){
+        return;
+    }
+
+    if(currentLat == null){
+        alert("GPS 尚未取得位置");
+        return;
+    }
+
+    var formData = new FormData();
+
+    formData.append("lat", currentLat);
+    formData.append("lng", currentLng);
+    formData.append("file", file);
+
+    fetch("/checkin_photo",{
+
+        method:"POST",
+        body: formData
+
+    })
+
+    .then(res=>res.json())
+
+    .then(data=>{
+
+        alert("拍照打卡成功");
+
+        loadCheckins();
+
+    });
+
+});
+
+
+
+// 讀取所有打卡
+function loadCheckins(){
+
+    fetch("/checkins")
+
+    .then(res=>res.json())
+
+    .then(data=>{
+
+        var route = [];
+
+        markers.forEach(function(m){
+            map.removeLayer(m);
+        });
+
+        markers = [];
+
+        data.forEach(function(c){
+
+            var marker = L.marker([c.lat,c.lng]).addTo(map);
+
+            route.push([c.lat,c.lng]);
+
+            var popup =
+                "📍 打卡位置<br>"+
+                "時間："+c.time;
+
+            if(c.photo){
+
+                popup += "<br><img src='/uploads/photos/"+c.photo+"' width='180'>";
+
+            }
+
+            marker.bindPopup(popup);
+
+            markers.push(marker);
+
+        });
+
+        if(routeLine){
+            map.removeLayer(routeLine);
+        }
+
+        routeLine = L.polyline(route,{
+            color:"red",
+            weight:4
+        }).addTo(map);
+
+    });
+
+}
+
+
+// 載入打卡
+loadCheckins();
+
+</script>
+
+</body>
+</html>
