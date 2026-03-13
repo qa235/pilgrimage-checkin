@@ -7,12 +7,28 @@ import pathlib
 from datetime import datetime
 from fastapi.responses import FileResponse
 
+import cloudinary
+import cloudinary.uploader
 
 app = FastAPI()
 
+# ---------------------------
+# Cloudinary 設定
+# ---------------------------
+cloudinary.config(
+    cloud_name="dwwzsuavh",
+    api_key="339471142411895",
+    api_secret="T8MaKXK1oyR0siB5YCz5pHZqz6w"
+)
+
+# ---------------------------
+# 建立資料夾
+# ---------------------------
 os.makedirs("uploads/photos", exist_ok=True)
 
+# ---------------------------
 # 建立資料庫
+# ---------------------------
 conn = sqlite3.connect("checkins.db", check_same_thread=False)
 cursor = conn.cursor()
 
@@ -29,12 +45,17 @@ CREATE TABLE IF NOT EXISTS checkins (
 conn.commit()
 
 
+# ---------------------------
+# Model
+# ---------------------------
 class Checkin(BaseModel):
     lat: float
     lng: float
 
 
-# 首頁顯示地圖
+# ---------------------------
+# 首頁
+# ---------------------------
 @app.get("/")
 def home():
     return FileResponse("static/index.html")
@@ -45,6 +66,9 @@ def health():
     return {"status": "ok"}
 
 
+# ---------------------------
+# GPS 打卡
+# ---------------------------
 @app.post("/checkin")
 def add_checkin(data: Checkin):
 
@@ -64,6 +88,9 @@ def add_checkin(data: Checkin):
     }
 
 
+# ---------------------------
+# 拍照打卡
+# ---------------------------
 @app.post("/checkin_photo")
 async def checkin_photo(
     lat: float = Form(...),
@@ -73,27 +100,29 @@ async def checkin_photo(
 
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    filename = pathlib.Path(file.filename).name
-    filename = f"{datetime.now().strftime('%Y%m%d%H%M%S')}_{filename}"
+    # 上傳到 Cloudinary
+    contents = await file.read()
 
-    filepath = os.path.join("uploads/photos", filename)
+    result = cloudinary.uploader.upload(contents)
 
-    with open(filepath, "wb") as buffer:
-        buffer.write(await file.read())
+    photo_url = result["secure_url"]
 
     cursor.execute(
         "INSERT INTO checkins(lat,lng,time,photo) VALUES(?,?,?,?)",
-        (lat, lng, now, filename)
+        (lat, lng, now, photo_url)
     )
 
     conn.commit()
 
     return {
         "status": "success",
-        "photo": filename
+        "photo": photo_url
     }
 
 
+# ---------------------------
+# 取得所有打卡
+# ---------------------------
 @app.get("/checkins")
 def get_checkins():
 
@@ -108,5 +137,8 @@ def get_checkins():
     return results
 
 
+# ---------------------------
+# static
+# ---------------------------
 app.mount("/static", StaticFiles(directory="static"), name="static")
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")

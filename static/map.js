@@ -33,9 +33,17 @@ function loadCheckins(){
 
             var marker = L.marker([c.lat, c.lng]).addTo(map);
 
-            marker.bindPopup(
-                "打卡位置<br>時間: " + c.time
-            );
+            var popupContent =
+                "<b>打卡位置</b><br>" +
+                "時間: " + c.time + "<br>";
+
+            // 如果有照片就顯示
+            if(c.photo){
+                popupContent +=
+                    "<img src='" + c.photo + "' width='200'>";
+            }
+
+            marker.bindPopup(popupContent);
 
         });
 
