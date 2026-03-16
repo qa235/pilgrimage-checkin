@@ -71,12 +71,17 @@ button{
 
 <div class="controls">
 
+
 <button class="btn-gps" onclick="checkin()">
-📍 GPS 打卡
+ GPS 打卡
+</button>
+
+<button class="btn-gps" onclick="locateMe()">
+重新定位
 </button>
 
 <button class="btn-photo" onclick="openCamera()">
-📷 拍照打卡
+拍照打卡
 </button>
 
 <input type="file" id="photo" accept="image/*" capture="environment">
@@ -125,6 +130,25 @@ function(){
 }
 
 );
+
+
+// 重新定位
+function locateMe(){
+
+navigator.geolocation.getCurrentPosition(function(position){
+
+    currentLat = position.coords.latitude;
+    currentLng = position.coords.longitude;
+
+    map.setView([currentLat,currentLng],16);
+
+    var marker = L.marker([currentLat,currentLng]).addTo(map);
+
+    marker.bindPopup("你目前的位置").openPopup();
+
+});
+
+}
 
 
 // GPS打卡
